@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/informationsea/websockify-rs"
 repository = "https://github.com/informationsea/websockify-rs"
 keywords = ["websocket", "websockify", "warp"]
-categories = ["web-programming::websocket", "network-programming"]
+categories = ["web-programming::websocket", "web-programming::http-server", "network-programming"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

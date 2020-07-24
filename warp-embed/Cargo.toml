@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/informationsea/websockify-rs"
 repository = "https://github.com/informationsea/websockify-rs"
 keywords = ["embedded-file", "warp"]
-categories = ["web-programming::server"]
+categories = ["web-programming::http-server"]
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
