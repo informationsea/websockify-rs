@@ -22,9 +22,9 @@ main() {
     # TODO Update this to package the right artifacts
     cp target/$TARGET/release/websockify-rs $stage/
     cp README.md $stage/
-    cp LICNESE $stage/LICNESE.txt
+    cp LICENSE $stage/LICENSE
     cp websockify-rs/noVNC/README.md $stage/README-novnc.md
-    cp websockify-rs/noVNC/LICNESE $stage/LICNESE-novnc.txt
+    cp websockify-rs/noVNC/LICENSE.txt $stage/LICENSE-novnc.txt
 
     cd $stage
     tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *
