@@ -1,0 +1,17 @@
+[package]
+name = "websockify-rs"
+version = "0.1.0"
+authors = ["Okamura Yasunobu <okamura@informationsea.info>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+warp-websockify = { version = "0.1", path = "../warp-websockify" }
+warp-embed = { version = "0.1", path = "../warp-embed" }
+warp = { version = "0.2" }
+tokio = { version = "0.2", features = ["macros", "tcp", "uds"] }
+log = "0.4"
+pretty_env_logger = "0.4"
+rust-embed = "5"
+clap = "2"

@@ -1,0 +1,3 @@
+[submodule "websockify-rs/noVNC"]
+	path = websockify-rs/noVNC
+	url = https://github.com/novnc/noVNC.git
