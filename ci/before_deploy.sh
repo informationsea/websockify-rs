@@ -17,11 +17,14 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    # TODO Update this to build the artifacts that matter to you
-    cross rustc --bin hello --target $TARGET --release -- -C lto
+    cross build --target $TARGET --release
 
     # TODO Update this to package the right artifacts
-    cp target/$TARGET/release/hello $stage/
+    cp target/$TARGET/release/websockify-rs $stage/
+    cp README.md $stage/
+    cp LICNESE $stage/LICNESE.txt
+    cp websockify-rs/noVNC/README.md $stage/README-novnc.md
+    cp websockify-rs/noVNC/LICNESE $stage/LICNESE-novnc.txt
 
     cd $stage
     tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *
