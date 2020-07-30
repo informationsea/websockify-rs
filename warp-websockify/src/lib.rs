@@ -71,14 +71,20 @@ pub fn websockify(
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     let dest: Arc<Destination> = Arc::new(dest);
     let dest = warp::any().map(move || dest.clone());
-    warp::ws()
-        .and(dest)
-        .and_then(move |ws: Ws, dest: Arc<Destination>| async move {
-            match dest.as_ref().connect().await {
-                Ok(stream) => Ok(ws.on_upgrade(|ws| connect(ws, stream))),
-                Err(_) => Err(warp::reject::reject()),
-            }
-        })
+    warp::ws().and(dest).and_then(websockify_connect)
+}
+
+/// Connect to TCP or unix domain socket and redirect to websocket
+pub fn websockify_connect(
+    ws: Ws,
+    dest: impl AsRef<Destination>,
+) -> impl TryFuture<Ok = impl Reply, Error = Rejection> {
+    async move {
+        match dest.as_ref().connect().await {
+            Ok(stream) => Ok(ws.on_upgrade(|ws| connect(ws, stream))),
+            Err(_) => Err(warp::reject::reject()),
+        }
+    }
 }
 
 async fn connect(ws: WebSocket, stream: NetStream) {
