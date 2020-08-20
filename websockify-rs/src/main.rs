@@ -79,11 +79,40 @@ async fn main() {
 
     let ws = warp::path("websockify").and(warp_websockify::websockify(upstream));
     let static_file = warp::path("static").and(warp_embed::embed(&NoVnc {}));
+    let prefix = matches.value_of("prefix").unwrap_or("").to_string();
+
+    let static_url = format!(
+        "{}{}/static/vnc.html",
+        if prefix.is_empty() { "" } else { "/" },
+        prefix
+    )
+    .parse::<Uri>()
+    .unwrap();
+    println!(
+        "URL: {} {:?} {}",
+        static_url,
+        static_url.host(),
+        static_url.path()
+    );
 
     let server = static_file
         .with(warp::log("http"))
         .or(ws.with(warp::log("http")))
-        .or(warp::path::end().map(|| warp::redirect(Uri::from_static("/vnc/static/vnc.html"))));
+        .or(warp::path::end()
+            .map(move || {
+                let static_url = format!(
+                    "{}{}/static/vnc.html?path={}{}websockify",
+                    if prefix.is_empty() { "" } else { "/" },
+                    prefix,
+                    prefix,
+                    if prefix.is_empty() { "" } else { "/" },
+                )
+                .parse::<Uri>()
+                .unwrap();
+                info!("redirect URL: {}", static_url);
+                warp::redirect(static_url)
+            })
+            .with(warp::log("http")));
 
     let server = if let Some(x) = matches.value_of("prefix") {
         warp::path(x.to_string()).and(server).boxed()

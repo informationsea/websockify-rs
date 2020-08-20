@@ -23,6 +23,14 @@ use tokio::net::{TcpStream, UnixStream};
 use warp::ws::{Message, WebSocket, Ws};
 use warp::{reject::Rejection, reply::Reply, Filter};
 
+fn option_socket_to_string(addr: Option<SocketAddr>) -> String {
+    if let Some(addr) = addr {
+        format!("{}", addr)
+    } else {
+        "[NO ADDR]".to_string()
+    }
+}
+
 /// WebSockify upstream
 pub enum Destination {
     /// Connect to TCP
@@ -30,6 +38,15 @@ pub enum Destination {
 
     /// Connect to unix domain socket
     Unix(PathBuf),
+}
+
+impl std::fmt::Display for Destination {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Destination::Tcp(tcp) => write!(f, "{:?}", tcp),
+            Destination::Unix(unix) => write!(f, "{}", unix.to_str().unwrap()),
+        }
+    }
 }
 
 impl Destination {
@@ -71,49 +88,76 @@ pub fn websockify(
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     let dest: Arc<Destination> = Arc::new(dest);
     let dest = warp::any().map(move || dest.clone());
-    warp::ws().and(dest).and_then(websockify_connect)
+    warp::addr::remote()
+        .and(warp::ws())
+        .and(dest)
+        .and_then(websockify_connect)
 }
 
 /// Connect to TCP or unix domain socket and redirect to websocket
 pub fn websockify_connect(
+    addr: Option<SocketAddr>,
     ws: Ws,
     dest: impl AsRef<Destination>,
 ) -> impl TryFuture<Ok = impl Reply, Error = Rejection> {
     async move {
         match dest.as_ref().connect().await {
-            Ok(stream) => Ok(ws.on_upgrade(|ws| connect(ws, stream))),
-            Err(_) => Err(warp::reject::reject()),
+            Ok(stream) => {
+                info!(
+                    "{} target:[{}] Connection started",
+                    option_socket_to_string(addr),
+                    dest.as_ref()
+                );
+                Ok(ws.on_upgrade(move |ws| connect(addr, ws, stream)))
+            }
+            Err(e) => {
+                error!(
+                    "{} target:[{}] {}",
+                    option_socket_to_string(addr),
+                    dest.as_ref(),
+                    e
+                );
+                Err(warp::reject::reject())
+            }
         }
     }
 }
 
-async fn connect(ws: WebSocket, stream: NetStream) {
+async fn connect(addr: Option<SocketAddr>, ws: WebSocket, stream: NetStream) {
     match stream {
-        NetStream::Unix(x) => unix_connect(ws, x).await,
-        NetStream::Tcp(x) => tcp_connect(ws, x).await,
+        NetStream::Unix(x) => unix_connect(addr, ws, x).await,
+        NetStream::Tcp(x) => tcp_connect(addr, ws, x).await,
     }
 }
 
-async fn tcp_connect(ws: WebSocket, mut stream: TcpStream) {
+async fn tcp_connect(addr: Option<SocketAddr>, ws: WebSocket, mut stream: TcpStream) {
     let (tcp_rx, tcp_tx) = stream.split();
     let (tx, rx) = ws.split();
 
-    let x = handle_ws_rx(rx, tcp_tx);
-    let y = handle_ws_tx(tx, tcp_rx);
+    let x = handle_ws_rx(addr, rx, tcp_tx);
+    let y = handle_ws_tx(addr, tx, tcp_rx);
 
     if let Err(e) = tokio::try_join!(x, y) {
-        error!("tcp connection error: {}", e);
+        error!(
+            "{} tcp connection error: {}",
+            option_socket_to_string(addr),
+            e
+        );
     }
 }
 
-async fn unix_connect(ws: WebSocket, mut stream: UnixStream) {
+async fn unix_connect(addr: Option<SocketAddr>, ws: WebSocket, mut stream: UnixStream) {
     let (tcp_rx, tcp_tx) = stream.split();
     let (tx, rx) = ws.split();
 
-    let x = handle_ws_rx(rx, tcp_tx);
-    let y = handle_ws_tx(tx, tcp_rx);
+    let x = handle_ws_rx(addr, rx, tcp_tx);
+    let y = handle_ws_tx(addr, tx, tcp_rx);
     if let Err(e) = tokio::try_join!(x, y) {
-        info!("unix connection error: {}", e);
+        error!(
+            "{} unix connection error: {}",
+            option_socket_to_string(addr),
+            e
+        );
     }
 }
 
@@ -121,6 +165,7 @@ async fn handle_ws_rx<
     WSR: Stream<Item = Result<Message, warp::Error>> + std::marker::Unpin + std::marker::Send,
     SW: AsyncWrite + std::marker::Unpin + std::marker::Send,
 >(
+    addr: Option<SocketAddr>,
     mut rx: WSR,
     mut tcp_tx: SW,
 ) -> Result<(), WebsockifyError> {
@@ -130,7 +175,7 @@ async fn handle_ws_rx<
             tcp_tx.write_all(message.as_bytes()).await?;
         }
     }
-    info!("finish 1");
+    info!("{} WebSocket was closed", option_socket_to_string(addr));
     Ok(())
 }
 
@@ -138,6 +183,7 @@ async fn handle_ws_tx<
     WST: Sink<Message, Error = warp::Error> + std::marker::Unpin + std::marker::Send,
     SR: AsyncRead + std::marker::Unpin + std::marker::Send,
 >(
+    addr: Option<SocketAddr>,
     mut tx: WST,
     mut tcp_rx: SR,
 ) -> Result<(), WebsockifyError> {
@@ -152,12 +198,15 @@ async fn handle_ws_tx<
             //println!("send bytes: {}", read_bytes);
             tx.send(Message::binary(&buffer[0..read_bytes])).await?;
         } else {
-            debug!("read zero bytes");
+            debug!("{} read zero bytes", option_socket_to_string(addr));
             tx.close().await?;
             break;
         }
     }
 
-    info!("finish 2");
+    info!(
+        "{} destination socket was closed",
+        option_socket_to_string(addr)
+    );
     Ok(())
 }
