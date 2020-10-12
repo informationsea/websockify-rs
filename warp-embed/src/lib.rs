@@ -26,13 +26,30 @@ impl Reply for EmbedFile {
     }
 }
 
+fn append_filename(path: &str, filename: &str) -> String {
+    if path.is_empty() {
+        filename.to_string()
+    } else {
+        format!("{}/{}", path, filename)
+    }
+}
+
 /// Creates a `Filter` that serves embedded files at the base `path` joined by the request path.
 pub fn embed<A: rust_embed::RustEmbed>(
     _: &A,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     warp::path::tail().and_then(|tail: Tail| async move {
-        if let Some(x) = A::get(tail.as_str()) {
-            let suggest = mime_guess::guess_mime_type(tail.as_str());
+        let (embedded_file, actual_name) = if let Some(x) = A::get(tail.as_str()) {
+            (Some(x), tail.as_str())
+        } else if let Some(x) = A::get(&append_filename(tail.as_str(), "index.html")) {
+            (Some(x), "index.html")
+        } else if let Some(x) = A::get(&append_filename(tail.as_str(), "index.htm")) {
+            (Some(x), "index.html")
+        } else {
+            (None, "")
+        };
+        if let Some(x) = embedded_file {
+            let suggest = mime_guess::guess_mime_type(actual_name);
             Ok(warp::reply::with_header(
                 EmbedFile { data: x },
                 "Content-Type",
