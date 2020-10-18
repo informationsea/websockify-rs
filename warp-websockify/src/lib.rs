@@ -187,10 +187,7 @@ async fn handle_ws_tx<
     mut tx: WST,
     mut tcp_rx: SR,
 ) -> Result<(), WebsockifyError> {
-    let mut buffer: Vec<u8> = Vec::with_capacity(10000);
-    for _ in 0..10000 {
-        buffer.push(0);
-    }
+    let mut buffer: Vec<u8> = vec![0; 10000];
 
     loop {
         let read_bytes = tcp_rx.read(&mut buffer).await?;
