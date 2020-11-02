@@ -1,2 +1,2 @@
 [workspace]
-members = ["warp-embed", "warp-websockify", "websockify-rs"]
+members = ["warp-websockify", "websockify-rs"]

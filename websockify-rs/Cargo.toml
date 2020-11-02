@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 warp-websockify = { version = "0.2", path = "../warp-websockify" }
-warp-embed = { version = "0.1", path = "../warp-embed" }
+warp-embed = { version = "^0.1.2" }
 warp = { version = "0.2" }
 tokio = { version = "0.2", features = ["macros", "tcp", "uds"] }
 log = "0.4"

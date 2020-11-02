@@ -1534,14 +1534,12 @@ dependencies = [
 
 [[package]]
 name = "warp-embed"
-version = "0.1.1"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "031653fef0ff1926e67f9f8ec15a476d2efc54f35f88a520a498877d560d568d"
 dependencies = [
- "clap",
- "log 0.4.11",
  "mime_guess 1.8.8",
- "pretty_env_logger",
  "rust-embed",
- "tokio",
  "warp",
 ]
 
