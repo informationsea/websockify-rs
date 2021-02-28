@@ -36,12 +36,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("listen-unix")
-                .short("l")
-                .long("listen-unix")
-                .help("Listen path is unix domain socket"),
-        )
-        .arg(
             Arg::with_name("prefix")
                 .short("p")
                 .long("prefix")
@@ -60,6 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .short("u")
                 .long("upstream-unix")
                 .help("Upstream is unix domain socket"),
+        )
+        .arg(
+            Arg::with_name("listen-unix")
+                .short("l")
+                .long("listen-unix")
+                .help("Listen path is unix domain socket"),
         )
     } else {
         app
