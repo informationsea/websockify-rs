@@ -1,5 +1,5 @@
 # WebSockify-rs
-[![Build Status](https://travis-ci.org/informationsea/websockify-rs.svg?branch=master)](https://travis-ci.org/informationsea/websockify-rs)
+[![Build](https://github.com/informationsea/websockify-rs/actions/workflows/build.yml/badge.svg)](https://github.com/informationsea/websockify-rs/actions/workflows/build.yml)
 
 Rust implementation of [WebSockify](https://github.com/novnc/websockify).
 noVNC files are embedded in websockify-rs for easy use.
