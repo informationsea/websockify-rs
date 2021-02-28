@@ -16,12 +16,15 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpStream, UnixStream};
+use tokio::net::TcpStream;
 use warp::ws::{Message, WebSocket, Ws};
 use warp::{reject::Rejection, reply::Reply, Filter};
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use tokio::net::UnixStream;
 
 fn option_socket_to_string(addr: Option<SocketAddr>) -> String {
     if let Some(addr) = addr {
@@ -37,6 +40,7 @@ pub enum Destination {
     Tcp(Vec<SocketAddr>),
 
     /// Connect to unix domain socket
+    #[cfg(unix)]
     Unix(PathBuf),
 }
 
@@ -44,6 +48,7 @@ impl std::fmt::Display for Destination {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             Destination::Tcp(tcp) => write!(f, "{:?}", tcp),
+            #[cfg(unix)]
             Destination::Unix(unix) => write!(f, "{}", unix.to_str().unwrap()),
         }
     }
@@ -51,6 +56,7 @@ impl std::fmt::Display for Destination {
 
 impl Destination {
     /// Create destination to unix domain socket
+    #[cfg(unix)]
     pub fn unix<P: AsRef<Path>>(path: P) -> Destination {
         Destination::Unix(path.as_ref().to_path_buf())
     }
@@ -72,12 +78,14 @@ impl Destination {
                 }
                 Err(last_error.unwrap())
             }
+            #[cfg(unix)]
             Destination::Unix(path) => Ok(NetStream::Unix(UnixStream::connect(path).await?)),
         }
     }
 }
 
 enum NetStream {
+    #[cfg(unix)]
     Unix(UnixStream),
     Tcp(TcpStream),
 }
@@ -125,6 +133,7 @@ pub fn websockify_connect(
 
 async fn connect(addr: Option<SocketAddr>, ws: WebSocket, stream: NetStream) {
     if let Err(e) = match stream {
+        #[cfg(unix)]
         NetStream::Unix(x) => unified_connect(addr, ws, x).await,
         NetStream::Tcp(x) => unified_connect(addr, ws, x).await,
     } {
