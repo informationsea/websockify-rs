@@ -16,7 +16,7 @@ USAGE:
 
 FLAGS:
     -h, --help             Prints help information
-    -l, --lisnten-unix     Listen path is unix domain socket
+    -l, --listen-unix     Listen path is unix domain socket
     -u, --upstream-unix    Upstream is unix domain socket
     -V, --version          Prints version information
     -v, --verbose          

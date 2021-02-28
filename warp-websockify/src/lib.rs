@@ -11,7 +11,7 @@
 
 mod error;
 
-pub use error::{WebsockifyError, WebsockifyErrorKind};
+pub use error::WebsockifyError;
 use futures::prelude::*;
 use log::{debug, error, info};
 use std::io;
@@ -124,86 +124,53 @@ pub fn websockify_connect(
 }
 
 async fn connect(addr: Option<SocketAddr>, ws: WebSocket, stream: NetStream) {
-    match stream {
-        NetStream::Unix(x) => unix_connect(addr, ws, x).await,
-        NetStream::Tcp(x) => tcp_connect(addr, ws, x).await,
+    if let Err(e) = match stream {
+        NetStream::Unix(x) => unified_connect(addr, ws, x).await,
+        NetStream::Tcp(x) => unified_connect(addr, ws, x).await,
+    } {
+        error!("{}: Error: {}", option_socket_to_string(addr), e);
     }
+    //warn!("Connection finished");
 }
 
-async fn tcp_connect(addr: Option<SocketAddr>, ws: WebSocket, mut stream: TcpStream) {
-    let (tcp_rx, tcp_tx) = stream.split();
-    let (tx, rx) = ws.split();
-
-    let x = handle_ws_rx(addr, rx, tcp_tx);
-    let y = handle_ws_tx(addr, tx, tcp_rx);
-
-    if let Err(e) = tokio::try_join!(x, y) {
-        error!(
-            "{} tcp connection error: {}",
-            option_socket_to_string(addr),
-            e
-        );
-    }
-}
-
-async fn unix_connect(addr: Option<SocketAddr>, ws: WebSocket, mut stream: UnixStream) {
-    let (tcp_rx, tcp_tx) = stream.split();
-    let (tx, rx) = ws.split();
-
-    let x = handle_ws_rx(addr, rx, tcp_tx);
-    let y = handle_ws_tx(addr, tx, tcp_rx);
-    if let Err(e) = tokio::try_join!(x, y) {
-        error!(
-            "{} unix connection error: {}",
-            option_socket_to_string(addr),
-            e
-        );
-    }
-}
-
-async fn handle_ws_rx<
-    WSR: Stream<Item = Result<Message, warp::Error>> + std::marker::Unpin + std::marker::Send,
-    SW: AsyncWrite + std::marker::Unpin + std::marker::Send,
->(
+async fn unified_connect<S>(
     addr: Option<SocketAddr>,
-    mut rx: WSR,
-    mut tcp_tx: SW,
-) -> Result<(), WebsockifyError> {
-    while let Some(message) = rx.next().await {
-        let message = message?;
-        if message.is_binary() {
-            tcp_tx.write_all(message.as_bytes()).await?;
-        }
-    }
-    info!("{} WebSocket was closed", option_socket_to_string(addr));
-    Ok(())
-}
-
-async fn handle_ws_tx<
-    WST: Sink<Message, Error = warp::Error> + std::marker::Unpin + std::marker::Send,
-    SR: AsyncRead + std::marker::Unpin + std::marker::Send,
->(
-    addr: Option<SocketAddr>,
-    mut tx: WST,
-    mut tcp_rx: SR,
-) -> Result<(), WebsockifyError> {
+    mut ws: WebSocket,
+    mut stream: S,
+) -> Result<(), WebsockifyError>
+where
+    S: AsyncRead + AsyncWrite + std::marker::Unpin,
+{
     let mut buffer: Vec<u8> = vec![0; 10000];
-
     loop {
-        let read_bytes = tcp_rx.read(&mut buffer).await?;
-        if read_bytes > 0 {
-            //println!("send bytes: {}", read_bytes);
-            tx.send(Message::binary(&buffer[0..read_bytes])).await?;
-        } else {
-            debug!("{} read zero bytes", option_socket_to_string(addr));
-            tx.close().await?;
-            break;
+        tokio::select! {
+            message = ws.next() => {
+                if let Some(message) = message {
+                    let message = message?;
+                    if message.is_binary() {
+                        stream.write_all(message.as_bytes()).await?;
+                    } else if message.is_close () {
+                        if let Some((code, reason)) = message.close_frame() {
+                            debug!("{}: Web socket closed: {}: {}", option_socket_to_string(addr), code, reason);
+                        } else {
+                            debug!("{}: Web socket closed", option_socket_to_string(addr))
+                        }
+                        return Ok(());
+                    }
+                } else {
+                    error!("{}: No packet received from websocket", option_socket_to_string(addr));
+                }
+            },
+            data_bytes = stream.read(&mut buffer) => {
+                let data_bytes = data_bytes?;
+                if data_bytes > 0 {
+                    ws.send(Message::binary(&buffer[0..data_bytes])).await?;
+                } else {
+                    debug!("{}: TCP/Unix stream closed", option_socket_to_string(addr));
+                    ws.close().await?;
+                    return Ok(());
+                }
+            }
         }
     }
-
-    info!(
-        "{} destination socket was closed",
-        option_socket_to_string(addr)
-    );
-    Ok(())
 }

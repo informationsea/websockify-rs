@@ -1,4 +1,4 @@
-pub use warp_websockify::{WebsockifyError, WebsockifyErrorKind};
+pub use warp_websockify::WebsockifyError;
 
 use clap::{crate_authors, crate_version, App, Arg};
 use log::info;
@@ -6,6 +6,7 @@ use rust_embed::RustEmbed;
 use std::env;
 use std::net::ToSocketAddrs;
 use tokio::net::UnixListener;
+use tokio_stream::wrappers::UnixListenerStream;
 use warp::{http::Uri, Filter};
 
 #[derive(RustEmbed)]
@@ -13,7 +14,7 @@ use warp::{http::Uri, Filter};
 struct NoVnc;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("WebSockify-rs")
         .version(crate_version!())
         .author(crate_authors!())
@@ -41,7 +42,7 @@ async fn main() {
         .arg(
             Arg::with_name("listen-unix")
                 .short("l")
-                .long("lisnten-unix")
+                .long("listen-unix")
                 .help("Listen path is unix domain socket"),
         )
         .arg(
@@ -121,15 +122,11 @@ async fn main() {
     };
 
     if matches.is_present("listen-unix") {
-        let mut listener = UnixListener::bind(matches.value_of("listen").unwrap()).unwrap();
-        let incoming = listener.incoming();
+        let listener = UnixListener::bind(matches.value_of("listen").unwrap())?;
+        let incoming = UnixListenerStream::new(listener);
         warp::serve(server).run_incoming(incoming).await;
     } else {
-        let listen = matches
-            .value_of("listen")
-            .unwrap()
-            .to_socket_addrs()
-            .unwrap();
+        let listen = matches.value_of("listen").unwrap().to_socket_addrs()?;
 
         let binded: Vec<_> = listen
             .map(|x| {
@@ -139,7 +136,9 @@ async fn main() {
             })
             .collect();
         for one in binded {
-            one.await.unwrap();
+            one.await?;
         }
     }
+
+    Ok(())
 }
