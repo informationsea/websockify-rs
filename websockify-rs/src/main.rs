@@ -102,12 +102,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .parse::<Uri>()
     .unwrap();
-    println!(
-        "URL: {} {:?} {}",
-        static_url,
-        static_url.host(),
-        static_url.path()
-    );
+
+    if matches.is_present("listen-unix") {
+        println!(
+            "URL: unix://{}{}",
+            matches.value_of("listen").unwrap(),
+            static_url
+        );
+    } else {
+        println!(
+            "URL: http://{}{}",
+            matches.value_of("listen").unwrap(),
+            static_url
+        );
+    }
 
     let server = static_file
         .with(warp::log("http"))
